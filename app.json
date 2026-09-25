@@ -30,9 +30,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logomarcaAPK.png",
-          "resizeMode": "cover",
-          "width": 800,
+          "image": "./assets/images/splash.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
           "backgroundColor": "#FFFFFF",
           "dark": {
             "backgroundColor": "#000000"
