@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "383020129727",
+    "project_id": "workflow-datapar-mobile",
+    "storage_bucket": "workflow-datapar-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:383020129727:android:7a944a2f6cf75f93f5d50a",
+        "android_client_info": {
+          "package_name": "com.edulopes.FluxoEmailsChamados"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6e9h7oKHNCyA1cwn3ARfdWWfrjGuVh7o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

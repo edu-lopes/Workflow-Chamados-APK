@@ -1,0 +1,38 @@
+# /etc/caddy/Caddyfile — gerado por deploy/setup.sh (não edite à mão; rode o setup)
+#
+# Servidor compartilhado: o Caddy escuta SOMENTE na porta __HTTPS_PORT__.
+# Não usa as portas 80/443: o certificado Let's Encrypt é validado por DNS
+# (registro TXT no DuckDNS), então nenhuma porta precisa estar aberta para isso.
+
+{
+	# Sem redirecionamento HTTP->HTTPS (evita abrir a porta 80)
+	auto_https disable_redirects
+	https_port __HTTPS_PORT__
+}
+
+__DOMAIN__:__HTTPS_PORT__ {
+	tls {
+		issuer acme {
+			dns duckdns {env.DUCKDNS_API_TOKEN}
+			resolvers 1.1.1.1 8.8.8.8
+			disable_http_challenge
+			disable_tlsalpn_challenge
+		}
+	}
+
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:__PORT__ {
+		header_up X-Request-Id {http.request.uuid}
+	}
+
+	header {
+		-Server
+	}
+
+	# Acessos vão para o journal:  journalctl -u caddy -f
+	log {
+		output stderr
+		format json
+	}
+}

@@ -1,0 +1,31 @@
+# dependências e builds
+node_modules/
+dist/
+web-build/
+.expo/
+expo-env.d.ts
+*.tsbuildinfo
+
+# ambiente (segredos)
+.env
+.env.*
+!.env.example
+
+# nativo (gerado pelo prebuild/EAS)
+/ios
+/android
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+*.orig.*
+
+# logs / sistema
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+.DS_Store
