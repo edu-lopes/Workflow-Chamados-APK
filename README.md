@@ -126,7 +126,7 @@ A pasta antiga (`/opt/chamados-backend`) pode ser removida depois da validação
 | Últimos erros | `journalctl -u fluxo-api -p err -n 50` |
 | Status do serviço | `systemctl status fluxo-api` |
 | HTTPS / certificado | `journalctl -u caddy -f` |
-| Acessos HTTP | `tail -f /var/log/caddy/fluxo-api.log` |
+| Acessos HTTP (Caddy) | `journalctl -u caddy -f` |
 | API respondendo (local) | `curl http://127.0.0.1:8080/health` |
 | API respondendo (internet) | `curl https://apkchamados.duckdns.org:8443/health` |
 
@@ -218,17 +218,25 @@ sudo mysql fluxo_workflow < backend/database/schema.sql
 
 ## 5. Administração de usuários
 
-O cadastro pela API exige login. O primeiro usuário (e trocas de senha) é feito
-no servidor — a senha é digitada sem aparecer na tela:
+Rode no servidor, a partir da pasta da API compilada:
 
 ```bash
 cd /var/www/html/fluxo-chamados
-sudo -u fluxo node --env-file=/etc/fluxo-api/fluxo-api.env dist/cli.js create-user "Nome Completo" email@apk.com.br
-sudo -u fluxo node --env-file=/etc/fluxo-api/fluxo-api.env dist/cli.js set-password email@apk.com.br
-sudo -u fluxo node --env-file=/etc/fluxo-api/fluxo-api.env dist/cli.js list-users
+CLI="sudo -u fluxo node --env-file=/etc/fluxo-api/fluxo-api.env dist/cli.js"
+
+$CLI list-users                                   # lista id, nome e e-mail
+$CLI reset-password 3 'NovaSenha123'              # redefine a senha do usuário de ID 3
+$CLI create-user "Nome Completo" email@apk.com.br # pede a senha no terminal
+$CLI set-password email@apk.com.br                # redefine pelo e-mail, pedindo a senha no terminal
 ```
 
----
+- `reset-password <id> <nova-senha>`: mínimo de 8 caracteres. Use **aspas simples**
+  quando a senha tiver espaço ou caracteres como `!`, `$`, `&`.
+- A senha passada como parâmetro fica no histórico do shell (`~/.bash_history`).
+  Para não gravar, rode antes `export HISTCONTROL=ignorespace` e comece o comando
+  com um **espaço**, ou use `set-password`, que pede a senha sem mostrá-la.
+- O usuário continua logado nos aparelhos onde já estava até o token expirar
+  (`JWT_EXPIRES_IN`); a senha nova vale para os próximos logins.
 
 ## 6. Referência da API
 
@@ -258,6 +266,16 @@ exigem `Authorization: Bearer <token>`.
 Erros seguem o formato `{ "error": "mensagem", "code": "CODIGO" }`
 (ex.: `GOOGLE_NOT_CONNECTED`, `UNAUTHENTICATED`, `VALIDATION`).
 
+> **Sincronização:** percorre as páginas do Gmail (mais recentes primeiro) até
+> alcançar e-mails já gravados, então recupera atrasos de semanas sem lacunas
+> (teto por execução: `GMAIL_SYNC_LIMIT`, padrão 3000). Quando mais de 10 e-mails
+> chegam de uma vez, é enviado um único push-resumo em vez de um por e-mail.
+>
+> **Erro `GOOGLE_CLIENT_INVALID`:** a credencial OAuth foi excluída no Google
+> Cloud. Crie outra (tipo "Aplicativo da Web"), atualize `GOOGLE_CLIENT_ID` e
+> `GOOGLE_CLIENT_SECRET` em `/etc/fluxo-api/fluxo-api.env`, reinicie a API e
+> conecte o Google novamente pelo app.
+>
 > **Google OAuth em modo "Teste":** o Google invalida o refresh token a cada
 > 7 dias. Se o app pedir para reconectar o Google toda semana, publique o app
 > OAuth (Tela de consentimento → *Publicar app*).

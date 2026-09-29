@@ -3,7 +3,9 @@
  *   node --env-file=.env dist/cli.js create-user "Nome Completo" email@empresa.com.br
  *   node --env-file=.env dist/cli.js set-password email@empresa.com.br
  *   node --env-file=.env dist/cli.js list-users
- * A senha é pedida no terminal (não fica no histórico do shell).
+ *   node --env-file=.env dist/cli.js reset-password <id> <nova-senha>
+ * create-user e set-password pedem a senha no terminal; reset-password recebe
+ * a senha como parâmetro (fica no histórico do shell — ver README).
  */
 import bcrypt from "bcryptjs";
 import { createInterface } from "node:readline";
@@ -51,12 +53,29 @@ async function run() {
       console.log(result.affectedRows ? "Senha atualizada." : "Usuário não encontrado.");
       break;
     }
+    case "reset-password": {
+      const [rawId, novaSenha] = args;
+      const id = Number(rawId);
+      if (!rawId || !novaSenha || !Number.isInteger(id) || id <= 0) {
+        throw new Error("Uso: reset-password <id> <nova-senha>");
+      }
+      if (novaSenha.length < 8) throw new Error("A senha precisa ter ao menos 8 caracteres");
+      const [user] = await select<{ nome: string; email: string }>(
+        "SELECT nome, email FROM users WHERE id = ?",
+        [id],
+      );
+      if (!user) throw new Error(`Usuário #${id} não encontrado`);
+      const hash = await bcrypt.hash(novaSenha, BCRYPT_ROUNDS);
+      await exec("UPDATE users SET senha_hash = ? WHERE id = ?", [hash, id]);
+      console.log(`Senha redefinida: #${id} ${user.nome} <${user.email}>`);
+      break;
+    }
     case "list-users": {
       console.table(await select("SELECT id, nome, email FROM users ORDER BY id"));
       break;
     }
     default:
-      console.log("Comandos: create-user <nome> <email> | set-password <email> | list-users");
+      console.log("Comandos: create-user <nome> <email> | set-password <email> | reset-password <id> <nova-senha> | list-users");
   }
 }
 
