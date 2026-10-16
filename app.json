@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chamados APK",
     "slug": "FluxoEmailsChamados",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fluxoemailschamados",
@@ -58,8 +58,17 @@
       "router": {},
       "eas": {
         "projectId": "d358349a-e198-4092-ac7d-ba0a4db682b4"
-      }
+      },
+      "apiUrl": "https://apkchamados.duckdns.org:8443"
     },
-    "owner": "edu-lopes"
+    "owner": "edu-lopes",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d358349a-e198-4092-ac7d-ba0a4db682b4",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

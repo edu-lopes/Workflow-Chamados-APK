@@ -3,6 +3,7 @@
  * seguro, timeout, mensagens de erro legíveis e cache para uso offline.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -10,8 +11,11 @@ import { Platform } from "react-native";
  * URL da API
  * ============================================================ */
 
-// EXPO_PUBLIC_* é embutido no bundle durante o build (eas.json -> build.<perfil>.env)
-const RAW_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").trim().replace(/\/+$/, "");
+// Ordem: EXPO_PUBLIC_API_URL (.env / eas.json, embutido no bundle) -> app.json "extra.apiUrl".
+// O app.json garante a URL certa também nas atualizações OTA (eas update).
+const RAW_URL = (process.env.EXPO_PUBLIC_API_URL || (Constants.expoConfig?.extra?.apiUrl as string | undefined) || "")
+  .trim()
+  .replace(/\/+$/, "");
 export const API_URL = RAW_URL || (__DEV__ ? "http://localhost:8080" : "");
 
 if (!__DEV__ && API_URL.startsWith("http://")) {
@@ -262,6 +266,7 @@ export const api = {
   markTicketRead: (id: string) =>
     request(`/notifications/ticket/${encodeURIComponent(id)}/read-all`, { method: "PUT" }),
 
+  googleStatus: () => request<{ connected: boolean }>("/auth/google/status", { timeoutMs: 8_000 }),
   sync: () => request<SyncResult>("/sync", { method: "POST", timeoutMs: 120_000 }),
   googleAuthUrl: (redirect?: string) =>
     request<{ url: string }>(`/auth/google${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`),

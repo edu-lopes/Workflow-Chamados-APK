@@ -7,6 +7,7 @@ import { API_URL } from "@/src/api";
 import { useSession } from "@/src/session";
 import { BRAND_BLUE } from "@/src/ui";
 import Constants from "expo-constants";
+import { versionLabel } from "@/src/updates";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -104,7 +105,7 @@ export default function SettingsScreen() {
         <Text style={styles.info}>
           {user?.email}
           {"\n"}Servidor: {API_URL || "não configurado"}
-          {"\n"}Versão {Constants.expoConfig?.version ?? "-"}
+          {"\n"}{versionLabel(Constants.expoConfig?.version)}
         </Text>
       </ScrollView>
 

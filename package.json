@@ -1,7 +1,7 @@
 {
   "name": "fluxoemailschamados",
   "main": "expo-router/entry",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "start": "expo start",
@@ -11,7 +11,9 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "doctor": "npx expo-doctor",
-    "build:apk": "eas build -p android --profile production"
+    "build:apk": "eas build -p android --profile production",
+    "update": "eas update --channel production",
+    "update:preview": "eas update --channel preview"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -31,6 +33,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "expo-updates": "~29.0.20",
     "expo-web-browser": "~15.0.10",
     "react": "19.1.0",
     "react-dom": "19.1.0",

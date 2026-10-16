@@ -140,19 +140,50 @@ Para log nativo do APK: `adb logcat | grep -iE "ReactNativeJS|expo"`.
 
 ---
 
-## 3. Build do app (APK)
+## 3. Publicar o app
 
-A URL da API é gravada **no momento do build**, a partir do `eas.json`:
+Há dois jeitos de levar uma mudança aos celulares:
 
-```json
-"production": { "env": { "EXPO_PUBLIC_API_URL": "https://apkchamados.duckdns.org:8443" } }
+| Mudou | Como publicar | Usuário precisa reinstalar? |
+|---|---|---|
+| Telas, textos, regras do app (`app/`, `src/`), imagens usadas nas telas | **Atualização pelo ar:** `npm run update -- --message "o que mudou"` | Não. O app baixa sozinho e pergunta se pode reiniciar |
+| Ícone, splash, nome, permissões, `app.json` (parte nativa), biblioteca nova com código nativo, versão do Expo | **APK novo:** `eas build -p android --profile production` | Sim |
+| Só a API (`backend/`) | `sudo bash deploy/setup.sh` no servidor | Não |
+
+### Atualização pelo ar (EAS Update)
+
+```bash
+cd /var/www/html/workflow-chamados      # ou a pasta do projeto no seu PC
+npm run update -- --message "Corrige status finalizado"
 ```
 
-1. Confira a URL (com `:8443`) nos perfis `preview` e `production` do `eas.json`.
-2. `npm install`
-3. `npx eas build -p android --profile production`
+- O app verifica ao abrir e ao voltar para ele (no máximo a cada 10 min), baixa em
+  segundo plano e mostra **"Atualização disponível — Reiniciar?"**. Se a pessoa
+  escolher "Depois", a versão nova entra na próxima vez que o app for aberto.
+- Em *Configurações*, o rodapé mostra a versão e a data da atualização em uso.
+- **Desfazer** uma atualização com problema: `eas update:republish --channel production`
+  (escolha a anterior) ou `eas update:rollback`.
+- Testar antes com quem tem o APK `preview`: `npm run update:preview -- --message "..."`.
+- Plano gratuito do Expo: até 1.000 usuários/mês recebendo atualizações, sem limite de publicações.
 
-> Use sempre **https** e inclua a porta **:8443**. Builds de release do Android bloqueiam `http://`.
+### Quando é obrigatório gerar APK novo
+
+A atualização só chega a APKs com a **mesma versão** (`"version"` do `app.json`,
+política `runtimeVersion: appVersion`). Regra prática:
+
+1. Mudança só de código/telas → **não** mexa na versão; use `npm run update`.
+2. Mudança nativa (lista acima) → **aumente** a versão no `app.json`
+   (ex.: 2.1.0 → 2.2.0), gere o APK e distribua. Atualizações seguintes usam a nova versão.
+
+A URL da API vem do `app.json` (`extra.apiUrl`) — vale para APK e atualizações.
+`EXPO_PUBLIC_API_URL` (no `.env` ou no `eas.json`) tem prioridade, útil em desenvolvimento.
+
+### Build do APK
+
+```bash
+eas build -p android --profile production   # produção (canal "production")
+eas build -p android --profile preview      # teste (canal "preview")
+```
 
 ### Desenvolvimento local
 
@@ -198,6 +229,18 @@ sudo mysql fluxo_workflow < migrations/001_indices.sql
 | `interactions` | `idx_ticket_data_tipo (ticket_id, data_evento, tipo_evento)` | Listagem, detalhe e status do ticket (substitui `ticket_id`) |
 | `user_notifications` | `idx_notification_lido (notification_id, lido)` | "Lido por" (substitui `notification_id`) |
 | `user_push_tokens` | `idx_push_token (expo_push_token)` | Remoção de tokens inválidos |
+
+### Migração 002 — interações com "Texto do Evento" vazio (uma vez)
+
+Corrige interações gravadas antes da v2.1, quando um "Texto do Evento" vazio
+fazia a API gravar a linha seguinte ("Usuario Interação : ...") como texto.
+Interações sem texto do **Suporte APK** passam a ser **finalizações**.
+Só altera dados; mostra uma prévia antes e pode ser executada mais de uma vez.
+
+```bash
+mysqldump -h 127.0.0.1 -u root -p --single-transaction fluxo_workflow > ~/backup_antes_002.sql
+mysql -h 127.0.0.1 -u root -p fluxo_workflow < backend/database/migrations/002_corrige_texto_vazio.sql
+```
 
 ### Usuário do banco para a API
 
@@ -270,6 +313,15 @@ Erros seguem o formato `{ "error": "mensagem", "code": "CODIGO" }`
 > alcançar e-mails já gravados, então recupera atrasos de semanas sem lacunas
 > (teto por execução: `GMAIL_SYNC_LIMIT`, padrão 3000). Quando mais de 10 e-mails
 > chegam de uma vez, é enviado um único push-resumo em vez de um por e-mail.
+>
+> **Status "Finalizado":** a última interação do chamado é do Suporte APK com o
+> "Texto do Evento" vazio (usuários configuráveis em `FINALIZACAO_USUARIOS`).
+>
+> **Aviso de Google desconectado:** quando a sincronização para por falta de
+> autorização, todos os aparelhos recebem um push ("Sincronização de chamados
+> parada"); tocar nele abre a tela de reconexão. O aviso se repete a cada
+> `GOOGLE_ALERT_REMINDER_HOURS` (padrão 24h) até reconectar. Ao abrir o app, a
+> Home também avisa se o Google estiver desconectado.
 >
 > **Erro `GOOGLE_CLIENT_INVALID`:** a credencial OAuth foi excluída no Google
 > Cloud. Crie outra (tipo "Aplicativo da Web"), atualize `GOOGLE_CLIENT_ID` e

@@ -102,6 +102,35 @@ function normalizeGoogleError(err: unknown): unknown {
   return err;
 }
 
+/* ---------- Aviso por push quando a sincronização para por falta de autorização ---------- */
+
+let lastAlertAt = 0;
+
+/** Envia (no máximo 1x a cada GOOGLE_ALERT_REMINDER_HOURS) um push pedindo para reconectar o Google. */
+async function alertGoogleDisconnected(err: HttpError): Promise<void> {
+  const reminderMs = env.GOOGLE_ALERT_REMINDER_HOURS * 3_600_000;
+  const now = Date.now();
+  if (lastAlertAt && (reminderMs <= 0 || now - lastAlertAt < reminderMs)) return;
+  lastAlertAt = now;
+  const adminProblem = err.code === "GOOGLE_CLIENT_INVALID";
+  logger.warn({ code: err.code }, "Enviando aviso de Google desconectado");
+  await sendPushToAll([
+    {
+      title: "Sincronização de chamados parada",
+      body: adminProblem
+        ? "A credencial do Google no servidor é inválida. Avise o administrador."
+        : "A conta Google foi desconectada. Toque para conectar novamente.",
+      data: { action: adminProblem ? "google_admin" : "google_reauth" },
+    },
+  ]);
+}
+
+/** Sincronização voltou a funcionar: o próximo problema gera um aviso novo. */
+function clearGoogleAlert(): void {
+  if (lastAlertAt) logger.info("Conexão com o Google restabelecida");
+  lastAlertAt = 0;
+}
+
 async function clearTokens(): Promise<void> {
   await exec("DELETE FROM google_tokens").catch((err) => logger.error({ err }, "Falha ao limpar tokens Google"));
 }
@@ -160,6 +189,12 @@ export interface ParsedEmail {
   dataEvento: Date;
 }
 
+/** Usuário cuja interação sem texto finaliza o chamado (FINALIZACAO_USUARIOS: nomes ou e-mails). */
+export function isFinalizador(nome: string | null, email: string | null): boolean {
+  const alvos = env.FINALIZACAO_USUARIOS;
+  return [nome, email].some((v) => !!v && alvos.includes(v.trim().toLowerCase()));
+}
+
 export function parseEmail(email: RawEmail): ParsedEmail {
   const body = cleanEmailBody(email.body);
 
@@ -167,12 +202,12 @@ export function parseEmail(email: RawEmail): ParsedEmail {
     body.match(/(?:chamado\s*:\s*|chamando de n[úu]mero\s*|n[úu]mero do chamado\s*:\s*|Ticket\s*:\s*)(\d+)/i) ||
     email.subject?.match(/Ticket\s*:\s*(\d+)/i);
 
-  const empresa = body.match(/(?:Empresa|Cliente)\s*:\s*(.+?)(?=\n|$)/i)?.[1]?.trim() ?? null;
+  const empresa = body.match(/(?:Empresa|Cliente)\s*:[ \t]*(.+?)(?=\n|$)/i)?.[1]?.trim() ?? null;
 
   const descricaoChamado =
     body
       .match(
-        /Descri[çc][ãa]o do Chamado\s*:\s*([\s\S]*?)(?=\n\s*(?:Texto do Evento|Ultima atividade|Usu[áa]rio|Cordialmente|$))/i,
+        /Descri[çc][ãa]o do Chamado\s*:[ \t]*([\s\S]*?)(?=\n\s*(?:Texto do Evento|Ultima atividade|Usu[áa]rio|Cordialmente|$))/i,
       )?.[1]
       ?.trim() ?? null;
 
@@ -184,22 +219,30 @@ export function parseEmail(email: RawEmail): ParsedEmail {
 
   let textoEvento: string | null;
   if (tipoEvento === "cancelamento") {
-    textoEvento = body.match(/Motivo do Cancelamento\s*:\s*(.+?)(?=\n|$)/i)?.[1]?.trim() ?? "Cancelamento solicitado";
+    textoEvento = body.match(/Motivo do Cancelamento\s*:[ \t]*(.+?)(?=\n|$)/i)?.[1]?.trim() ?? "Cancelamento solicitado";
   } else if (tipoEvento === "pre_encerramento") {
     textoEvento =
-      body.match(/Ultima atividade\s*:\s*([\s\S]*?)(?=\n\s*Versão|\n\s*Cordialmente|$)/i)?.[1]?.trim() ?? null;
+      body.match(/Ultima atividade\s*:[ \t]*([\s\S]*?)(?=\n\s*Versão|\n\s*Cordialmente|$)/i)?.[1]?.trim() ?? null;
   } else {
     textoEvento =
-      body.match(/Texto do Evento\s*:\s*([\s\S]*?)(?=\n\s*(?:Usu[áa]rio|Cordialmente|$))/i)?.[1]?.trim() ?? null;
+      body.match(/Texto do Evento\s*:[ \t]*([\s\S]*?)(?=\n\s*(?:Usu[áa]rio|Cordialmente|$))/i)?.[1]?.trim() ?? null;
   }
 
   let usuarioNome: string | null = null;
   let usuarioEmail: string | null = null;
-  const userPart = body.match(/Usu[áa]rio (?:Intera[çc][ãa]o|Pré-?Encerramento)\s*:\s*(.+?)(?=\n|$)/i)?.[1]?.trim();
+  const userPart = body.match(/Usu[áa]rio (?:Intera[çc][ãa]o|Pré-?Encerramento)\s*:[ \t]*(.+?)(?=\n|$)/i)?.[1]?.trim();
   if (userPart) {
     const parts = userPart.match(/(.+?)\s*\((.+?)\)/);
     usuarioNome = parts ? parts[1].trim() : userPart;
     usuarioEmail = parts ? parts[2].trim() : null;
+  }
+
+  if (textoEvento !== null && textoEvento.trim() === "") textoEvento = null;
+
+  // Regra de negócio: interação SEM texto feita pelo usuário de finalização
+  // (padrão: Suporte APK) significa que o chamado foi FINALIZADO.
+  if (tipoEvento === "interacao" && textoEvento === null && isFinalizador(usuarioNome, usuarioEmail)) {
+    tipoEvento = "finalizacao";
   }
 
   return {
@@ -274,7 +317,11 @@ export async function storeEmail(p: ParsedEmail): Promise<PushMessage | null> {
 
     return {
       title: `Ticket #${p.ticketExternoId}`,
-      body: (notified.textoEvento || "Nova interação no chamado").slice(0, 180),
+      body: (
+        notified.tipoEvento === "finalizacao"
+          ? `Chamado finalizado${notified.usuarioNome ? ` por ${notified.usuarioNome}` : ""}`
+          : notified.textoEvento || "Nova interação no chamado"
+      ).slice(0, 180),
       data: { ticketId: String(p.ticketExternoId) },
     };
   });
@@ -407,13 +454,19 @@ async function doSync(trigger: string, client?: gmail_v1.Gmail): Promise<SyncRes
     ms: Date.now() - started,
   };
   logger.info(summary, "Sincronização concluída");
+  clearGoogleAlert();
   return { message: "Sincronização concluída", results };
 }
 
 /** Garante uma única sincronização por vez; chamadas simultâneas compartilham o resultado. */
 export function syncEmails(trigger: string, client?: gmail_v1.Gmail): Promise<SyncResult> {
   if (!running) {
-    running = doSync(trigger, client).finally(() => {
+    running = doSync(trigger, client)
+      .catch((err) => {
+        if (err instanceof HttpError && err.code?.startsWith("GOOGLE_")) void alertGoogleDisconnected(err);
+        throw err;
+      })
+      .finally(() => {
       running = null;
     });
   }
@@ -521,6 +574,7 @@ gmailRouter.get("/auth/google/callback", async (req, res) => {
   try {
     const { tokens } = await createOAuthClient().getToken(code);
     await saveTokens(tokens);
+    clearGoogleAlert();
     req.log.info({ userId: state.uid }, "Conta Google conectada");
   } catch (err) {
     req.log.error({ err }, "Falha ao trocar código OAuth por tokens");

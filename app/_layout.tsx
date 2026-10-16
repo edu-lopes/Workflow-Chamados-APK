@@ -6,6 +6,7 @@ import React, { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { usePushNotifications } from "@/src/push";
 import { SessionProvider, useSession } from "@/src/session";
+import { useOtaUpdates } from "@/src/updates";
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -18,6 +19,7 @@ function AppShell() {
   const segments = useSegments();
   const router = useRouter();
   usePushNotifications();
+  useOtaUpdates();
 
   useEffect(() => {
     if (status === "loading") return;

@@ -18,9 +18,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api, ApiError, type Ticket } from "@/src/api";
-import { takePendingTicket } from "@/src/push";
+import { takePendingAction, takePendingTicket } from "@/src/push";
 import { useSession } from "@/src/session";
 import { BRAND_RED, ReaderAvatars, shadow, StatusBadge, ticketStatus } from "@/src/ui";
+
+// Aviso de "Google desconectado" ao abrir o app: no máximo uma vez por sessão
+let googleAlertShown = false;
 
 type Filtro = "todos" | "abertos" | "encerrados" | "finalizados" | "cancelados";
 
@@ -69,14 +72,38 @@ export default function HomeScreen() {
     setLoading(false);
   }, []);
 
-  // Ao focar a tela: atualiza dados e abre ticket vindo de notificação
+  const pedirReconexaoGoogle = useCallback(
+    (mensagem: string) => {
+      Alert.alert("Google desconectado", mensagem, [
+        { text: "Agora não", style: "cancel" },
+        { text: "Conectar", onPress: () => router.push({ pathname: "/login", params: { google: "reauth" } }) },
+      ]);
+    },
+    [router],
+  );
+
+  // Ao focar a tela: atualiza dados, trata notificações tocadas e confere o Google
   useFocusEffect(
     useCallback(() => {
       reload();
       takePendingTicket().then((id) => {
         if (id) router.push({ pathname: "/ticket/[id]", params: { id } });
       });
-    }, [reload, router]),
+      takePendingAction().then((action) => {
+        if (action === "google_reauth") router.push({ pathname: "/login", params: { google: "reauth" } });
+      });
+      if (!googleAlertShown) {
+        api
+          .googleStatus()
+          .then(({ connected }) => {
+            if (!connected && !googleAlertShown) {
+              googleAlertShown = true;
+              pedirReconexaoGoogle("A sincronização automática dos chamados está parada. Conecte a conta Google para retomar.");
+            }
+          })
+          .catch(() => undefined);
+      }
+    }, [reload, router, pedirReconexaoGoogle]),
   );
 
   const sincronizar = useCallback(async () => {
@@ -89,17 +116,14 @@ export default function HomeScreen() {
       Alert.alert("Sincronização", novos > 0 ? `${novos} novo(s) e-mail(s) processado(s).` : "Nenhuma novidade!");
     } catch (err) {
       if (err instanceof ApiError && err.code === "GOOGLE_NOT_CONNECTED") {
-        Alert.alert("Google desconectado", "Conecte a conta Google novamente para sincronizar.", [
-          { text: "Agora não", style: "cancel" },
-          { text: "Conectar", onPress: () => router.push({ pathname: "/login", params: { google: "reauth" } }) },
-        ]);
+        pedirReconexaoGoogle("Conecte a conta Google novamente para sincronizar.");
       } else {
         Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível sincronizar os dados");
       }
     } finally {
       setSyncing(false);
     }
-  }, [syncing, reload, router]);
+  }, [syncing, reload, pedirReconexaoGoogle]);
 
   const sair = useCallback(() => {
     Alert.alert("Sair", "Deseja sair da conta?", [

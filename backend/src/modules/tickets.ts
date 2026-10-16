@@ -88,8 +88,7 @@ ticketsRouter.get("/", async (_req, res) => {
       total_interacoes: Number(r.total_interacoes),
       ultima_atualizacao: formatDateTime(r.ultima_atualizacao),
       encerrado: Number(r.encerrado) === 1,
-      finalizado:
-        (r.ultimo_tipo === "interacao" || r.ultimo_tipo === "pre_encerramento") && isBlank(r.ultimo_texto),
+      finalizado: r.ultimo_tipo === "finalizacao",
       cancelado: Number(r.cancelado) === 1,
       leitores: (readers.get(r.last_interaction_id) ?? []).map(({ id, nome, icon_color }) => ({
         id,
@@ -133,6 +132,8 @@ ticketsRouter.get("/:ticketId", async (req, res) => {
   const interacoes = interactions.map((i) => {
     let mensagem = i.tipo_evento === "abertura" ? i.descricao_chamado : i.texto_evento;
     if (i.tipo_evento === "pre_encerramento" && !mensagem) mensagem = "O chamado foi encerrado pelo sistema";
+    if (i.tipo_evento === "finalizacao") mensagem = "O chamado foi finalizado";
+    if (i.tipo_evento !== "abertura" && isBlank(mensagem)) mensagem = "(Interação sem texto)";
     return {
       tipo: i.tipo_evento,
       autor: i.usuario_nome,
@@ -157,8 +158,7 @@ ticketsRouter.get("/:ticketId", async (req, res) => {
     descricao: interactions.find((i) => i.descricao_chamado)?.descricao_chamado ?? "",
     interacoes,
     encerrado: !!last && CLOSING_TYPES.has(last.tipo_evento),
-    finalizado:
-      !!last && (last.tipo_evento === "interacao" || last.tipo_evento === "pre_encerramento") && isBlank(last.texto_evento),
+    finalizado: last?.tipo_evento === "finalizacao",
     cancelado: last?.tipo_evento === "cancelamento",
   });
 });

@@ -13,6 +13,7 @@ import { api } from "./api";
 import { PUSH_TOKEN_KEY, useSession } from "./session";
 
 const PENDING_TICKET_KEY = "@push:pendingTicket";
+const PENDING_ACTION_KEY = "@push:pendingAction";
 const HANDLED_KEY = "@push:lastHandled";
 
 if (Platform.OS !== "web") {
@@ -46,6 +47,19 @@ async function getExpoPushToken(): Promise<string | null> {
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
   return data;
+}
+
+/** Ação especial enviada pelo servidor (ex.: "google_reauth" quando a sincronização parou). */
+function actionFrom(response: Notifications.NotificationResponse): string | null {
+  const action = (response.notification.request.content.data as { action?: unknown } | undefined)?.action;
+  return action ? String(action) : null;
+}
+
+/** Retorna (e limpa) a ação pendente vinda de uma notificação. */
+export async function takePendingAction(): Promise<string | null> {
+  const action = await AsyncStorage.getItem(PENDING_ACTION_KEY);
+  if (action) await AsyncStorage.removeItem(PENDING_ACTION_KEY);
+  return action;
 }
 
 function ticketIdFrom(response: Notifications.NotificationResponse): string | null {
@@ -109,12 +123,23 @@ export function usePushNotifications() {
       const handled = await AsyncStorage.getItem(HANDLED_KEY);
       if (handled === last.notification.request.identifier) return;
       await AsyncStorage.setItem(HANDLED_KEY, last.notification.request.identifier);
+      const action = actionFrom(last);
+      if (action) await AsyncStorage.setItem(PENDING_ACTION_KEY, action);
       const ticketId = ticketIdFrom(last);
       if (ticketId) await rememberTicket(ticketId);
     })();
 
     const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
       await AsyncStorage.setItem(HANDLED_KEY, response.notification.request.identifier);
+      const action = actionFrom(response);
+      if (action === "google_reauth" && status === "signedIn") {
+        router.navigate({ pathname: "/login", params: { google: "reauth" } });
+        return;
+      }
+      if (action) {
+        await AsyncStorage.setItem(PENDING_ACTION_KEY, action);
+        return;
+      }
       const ticketId = ticketIdFrom(response);
       if (!ticketId) return;
       if (status === "signedIn") {
