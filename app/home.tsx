@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api, ApiError, type Ticket } from "@/src/api";
 import { takePendingAction, takePendingTicket } from "@/src/push";
 import { useSession } from "@/src/session";
+import { checkForUpdatesSilently } from "@/src/updates";
 import { BRAND_RED, ReaderAvatars, shadow, StatusBadge, ticketStatus } from "@/src/ui";
 
 // Aviso de "Google desconectado" ao abrir o app: no máximo uma vez por sessão
@@ -65,6 +66,7 @@ export default function HomeScreen() {
 
   /** Recarrega lista e não lidos (sem sincronizar com o Gmail). */
   const reload = useCallback(async () => {
+    checkForUpdatesSilently(); // aproveita a carga dos tickets para procurar versão nova do app
     const [ticketsRes, unreadRes] = await Promise.allSettled([api.tickets(), api.unreadTicketIds()]);
     if (ticketsRes.status === "fulfilled") {
       setTickets(ticketsRes.value.data);

@@ -157,9 +157,10 @@ cd /var/www/html/workflow-chamados      # ou a pasta do projeto no seu PC
 npm run update -- --message "Corrige status finalizado"
 ```
 
-- O app verifica ao abrir e ao voltar para ele (no máximo a cada 10 min), baixa em
-  segundo plano e mostra **"Atualização disponível — Reiniciar?"**. Se a pessoa
-  escolher "Depois", a versão nova entra na próxima vez que o app for aberto.
+- O app procura versão nova ao abrir, ao voltar para ele, na tela de login e sempre
+  que a lista de tickets recarrega (no máximo a cada 30 s). Baixa em segundo plano e
+  mostra **"Atualização disponível — Reiniciar?"** em qualquer tela. Se a pessoa
+  escolher "Depois", o aviso não insiste e a versão nova entra na próxima abertura.
 - Em *Configurações*, o rodapé mostra a versão e a data da atualização em uso, e o
   botão **Verificar atualizações** força a verificação e mostra o diagnóstico
   (canal, versão de runtime e se o app usa o código do APK ou uma atualização).

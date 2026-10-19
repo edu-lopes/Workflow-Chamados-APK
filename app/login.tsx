@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { api, API_URL, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
+import { checkForUpdatesSilently } from "@/src/updates";
 import { BRAND_RED } from "@/src/ui";
 
 type Etapa = "login" | "google_auth" | "sync";
@@ -63,6 +64,11 @@ export default function LoginScreen() {
   }, [etapa, goHome]);
 
   // ?google=reauth (vindo da Home) ou ?google=connected (retorno do Google na web)
+  // Procura versão nova do app ao abrir o login (o aviso aparece aqui mesmo)
+  useEffect(() => {
+    checkForUpdatesSilently();
+  }, []);
+
   useEffect(() => {
     if (params.google === "reauth" && status === "signedIn") {
       setEtapa("google_auth");
@@ -167,7 +173,7 @@ export default function LoginScreen() {
       <View style={styles.container}>
         <StatusBar style="light" />
         {logo}
-        <Text style={styles.inicio}>Realize o Login para acessar...</Text>
+        <Text style={styles.inicio}>Realize o Login para acessar:</Text>
 
         {erro !== "" && (
           <View style={styles.erroContainer}>

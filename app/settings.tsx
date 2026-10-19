@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "@/src/api";
 import { useSession } from "@/src/session";
@@ -18,6 +18,17 @@ export default function SettingsScreen() {
 
   const [cor, setCor] = useState(iconColor);
   const [saving, setSaving] = useState(false);
+  const [verificando, setVerificando] = useState(false);
+
+  const verificarAtualizacoes = async () => {
+    if (verificando) return;
+    setVerificando(true);
+    try {
+      await checkForUpdatesNow();
+    } finally {
+      setVerificando(false);
+    }
+  };
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -97,8 +108,27 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Pressable style={styles.updateButton} onPress={() => checkForUpdatesNow()}>
-            <Text style={styles.updateText}>Verificar atualizações</Text>
+          <Pressable
+            onPress={verificarAtualizacoes}
+            disabled={verificando}
+            android_ripple={{ color: darkMode ? "#ffffff22" : "#25508822" }}
+            style={({ pressed }) => [
+              styles.updateButton,
+              (pressed || verificando) && styles.updateButtonPressed,
+              pressed && { transform: [{ scale: 0.97 }] },
+            ]}
+          >
+            {verificando ? (
+              <View style={styles.updateRow}>
+                <ActivityIndicator size="small" color={BRAND_BLUE} />
+                <Text style={styles.updateText}>Verificando...</Text>
+              </View>
+            ) : (
+              <View style={styles.updateRow}>
+                <Ionicons name="cloud-download-outline" size={20} color={darkMode ? "#FFF" : BRAND_BLUE} />
+                <Text style={styles.updateText}>Verificar atualizações</Text>
+              </View>
+            )}
           </Pressable>
           <Pressable style={styles.logoutButton} onPress={sair}>
             <Text style={styles.logoutText}>Sair da conta</Text>
@@ -151,7 +181,10 @@ function makeStyles(dark: boolean) {
       alignItems: "center",
       borderWidth: 1,
       borderColor: dark ? "#555" : "#CCC",
+      overflow: "hidden",
     },
+    updateButtonPressed: { backgroundColor: dark ? "#2A2A2A" : "#E3ECF7", borderColor: BRAND_BLUE },
+    updateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     updateText: { color: fg, fontFamily: "ManropeBold", fontSize: 15 },
     logoutButton: { marginTop: 20, backgroundColor: "#FF3B30", padding: 14, borderRadius: 8, alignItems: "center" },
     logoutText: { color: "#FFF", fontFamily: "ManropeBold", fontSize: 16 },
