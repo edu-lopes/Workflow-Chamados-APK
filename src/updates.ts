@@ -52,3 +52,37 @@ export function versionLabel(appVersion: string | undefined): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${base} · atualização de ${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/**
+ * Verificação manual (botão em Configurações): mostra o diagnóstico completo
+ * e, se houver atualização, baixa e oferece reiniciar.
+ */
+export async function checkForUpdatesNow(): Promise<void> {
+  const info = [
+    `Canal: ${Updates.channel ?? "(nenhum)"}`,
+    `Versão de runtime: ${Updates.runtimeVersion ?? "(nenhuma)"}`,
+    `Em uso: ${Updates.isEmbeddedLaunch ? "código do APK" : `atualização ${Updates.updateId?.slice(0, 8)}`}`,
+  ].join("\n");
+
+  if (__DEV__ || !Updates.isEnabled) {
+    Alert.alert(
+      "Atualizações desativadas",
+      "Este app não recebe atualizações pelo ar (modo de desenvolvimento ou APK gerado antes do recurso). Instale um APK novo.",
+    );
+    return;
+  }
+  try {
+    const { isAvailable } = await Updates.checkForUpdateAsync();
+    if (!isAvailable) {
+      Alert.alert("Nenhuma atualização", `O app já está na versão mais recente publicada para este canal.\n\n${info}`);
+      return;
+    }
+    await Updates.fetchUpdateAsync();
+    Alert.alert("Atualização baixada", `Reiniciar agora para aplicar?\n\n${info}`, [
+      { text: "Depois", style: "cancel" },
+      { text: "Reiniciar", onPress: () => Updates.reloadAsync().catch(() => undefined) },
+    ]);
+  } catch (err) {
+    Alert.alert("Falha ao verificar", `${err instanceof Error ? err.message : String(err)}\n\n${info}`);
+  }
+}

@@ -7,7 +7,7 @@ import { API_URL } from "@/src/api";
 import { useSession } from "@/src/session";
 import { BRAND_BLUE } from "@/src/ui";
 import Constants from "expo-constants";
-import { versionLabel } from "@/src/updates";
+import { checkForUpdatesNow, versionLabel } from "@/src/updates";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -97,6 +97,9 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <Pressable style={styles.updateButton} onPress={() => checkForUpdatesNow()}>
+            <Text style={styles.updateText}>Verificar atualizações</Text>
+          </Pressable>
           <Pressable style={styles.logoutButton} onPress={sair}>
             <Text style={styles.logoutText}>Sair da conta</Text>
           </Pressable>
@@ -142,6 +145,14 @@ function makeStyles(dark: boolean) {
     preview: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: "#CCC" },
     button: { marginTop: 10, backgroundColor: BRAND_BLUE, padding: 12, borderRadius: 8, alignItems: "center" },
     buttonText: { color: "#FFF", fontFamily: "ManropeBold" },
+    updateButton: {
+      padding: 14,
+      borderRadius: 8,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: dark ? "#555" : "#CCC",
+    },
+    updateText: { color: fg, fontFamily: "ManropeBold", fontSize: 15 },
     logoutButton: { marginTop: 20, backgroundColor: "#FF3B30", padding: 14, borderRadius: 8, alignItems: "center" },
     logoutText: { color: "#FFF", fontFamily: "ManropeBold", fontSize: 16 },
     info: { fontSize: 11, fontFamily: "Manrope", color: dark ? "#777" : "#999", textAlign: "center", lineHeight: 17 },

@@ -160,7 +160,11 @@ npm run update -- --message "Corrige status finalizado"
 - O app verifica ao abrir e ao voltar para ele (no máximo a cada 10 min), baixa em
   segundo plano e mostra **"Atualização disponível — Reiniciar?"**. Se a pessoa
   escolher "Depois", a versão nova entra na próxima vez que o app for aberto.
-- Em *Configurações*, o rodapé mostra a versão e a data da atualização em uso.
+- Em *Configurações*, o rodapé mostra a versão e a data da atualização em uso, e o
+  botão **Verificar atualizações** força a verificação e mostra o diagnóstico
+  (canal, versão de runtime e se o app usa o código do APK ou uma atualização).
+- **Rode os comandos `eas` sempre na raiz do projeto** (pasta com `app.json` e `eas.json`
+  do app), nunca dentro de `backend/`.
 - **Desfazer** uma atualização com problema: `eas update:republish --channel production`
   (escolha a anterior) ou `eas update:rollback`.
 - Testar antes com quem tem o APK `preview`: `npm run update:preview -- --message "..."`.
@@ -314,7 +318,7 @@ Erros seguem o formato `{ "error": "mensagem", "code": "CODIGO" }`
 > (teto por execução: `GMAIL_SYNC_LIMIT`, padrão 3000). Quando mais de 10 e-mails
 > chegam de uma vez, é enviado um único push-resumo em vez de um por e-mail.
 >
-> **Status "Finalizado":** a última interação do chamado é do Suporte APK com o
+> **Status "Finalizado":** a última interação do chamado é do Suporte APK ou de Cleberson Santos com o
 > "Texto do Evento" vazio (usuários configuráveis em `FINALIZACAO_USUARIOS`).
 >
 > **Aviso de Google desconectado:** quando a sincronização para por falta de

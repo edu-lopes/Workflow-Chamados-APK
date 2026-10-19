@@ -56,7 +56,7 @@ const EnvSchema = z.object({
   // Interação sem "Texto do Evento" feita por um destes (nome ou e-mail) = chamado FINALIZADO
   FINALIZACAO_USUARIOS: z
     .string()
-    .default("Suporte APK,suporte@apklog.com.br")
+    .default("Suporte APK,suporte@apklog.com.br,Cleberson Santos")
     .transform((v) => csv(v).map((x) => x.toLowerCase())),
   // Repetir o push "Google desconectado" a cada N horas enquanto não reconectar (0 = avisar só uma vez)
   GOOGLE_ALERT_REMINDER_HOURS: z.coerce.number().min(0).default(24),

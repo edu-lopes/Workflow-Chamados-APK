@@ -14,6 +14,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -53,6 +54,9 @@ export default function HomeScreen() {
   const [unread, setUnread] = useState<Set<string>>(new Set());
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [soNaoLidos, setSoNaoLidos] = useState(false);
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [buscando, setBuscando] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [stale, setStale] = useState(false);
@@ -155,10 +159,41 @@ export default function HomeScreen() {
   }, [syncing, spin]);
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
-  const visiveis = useMemo(
-    () => tickets.filter((t) => matchesFilter(t, filtro) && (!soNaoLidos || unread.has(t.ticket_externo_id))),
-    [tickets, filtro, soNaoLidos, unread],
-  );
+  // Busca pelo número do ticket (só dígitos). Com busca ativa, ignora os filtros de status/não lidos.
+  const termo = busca.replace(/\D/g, "");
+  const visiveis = useMemo(() => {
+    if (termo) return tickets.filter((t) => t.ticket_externo_id.includes(termo));
+    return tickets.filter((t) => matchesFilter(t, filtro) && (!soNaoLidos || unread.has(t.ticket_externo_id)));
+  }, [tickets, filtro, soNaoLidos, unread, termo]);
+
+  const fecharBusca = useCallback(() => {
+    setBusca("");
+    setBuscaAberta(false);
+  }, []);
+
+  /** "Buscar" no teclado: se não estiver na lista (ex.: ticket com mais de 6 meses), consulta o servidor. */
+  const buscarNoServidor = useCallback(async () => {
+    if (!termo) return;
+    const exato = tickets.find((t) => t.ticket_externo_id === termo);
+    if (exato) return router.push({ pathname: "/ticket/[id]", params: { id: exato.ticket_externo_id } });
+    if (visiveis.length > 0) return; // há resultados parciais na lista
+    setBuscando(true);
+    try {
+      await api.ticket(termo);
+      router.push({ pathname: "/ticket/[id]", params: { id: termo } });
+    } catch (err) {
+      Alert.alert(
+        "Ticket não encontrado",
+        err instanceof ApiError && err.status === 404
+          ? `Nenhum ticket com o número ${termo}.`
+          : err instanceof Error
+            ? err.message
+            : "Não foi possível consultar o ticket.",
+      );
+    } finally {
+      setBuscando(false);
+    }
+  }, [termo, tickets, visiveis.length, router]);
 
   const abrirTicket = useCallback(
     (id: string) => router.push({ pathname: "/ticket/[id]", params: { id } }),
@@ -198,14 +233,48 @@ export default function HomeScreen() {
           <Ionicons name="close-outline" size={24} color={iconFg} />
         </Pressable>
         <Text style={styles.title}>Workflow Datapar</Text>
-        <Pressable onPress={() => router.push("/settings")} hitSlop={10} accessibilityLabel="Configurações">
-          <Ionicons name="settings-outline" size={24} color={iconFg} />
-        </Pressable>
+        <View style={styles.navRight}>
+          <Pressable
+            onPress={() => (buscaAberta ? fecharBusca() : setBuscaAberta(true))}
+            hitSlop={10}
+            accessibilityLabel="Pesquisar ticket"
+          >
+            <Ionicons name={buscaAberta ? "search" : "search-outline"} size={23} color={iconFg} />
+          </Pressable>
+          <Pressable onPress={() => router.push("/settings")} hitSlop={10} accessibilityLabel="Configurações">
+            <Ionicons name="settings-outline" size={24} color={iconFg} />
+          </Pressable>
+        </View>
       </View>
 
       <Text style={styles.welcome}>
         Olá <Text style={styles.nome}>{primeiroNome}</Text>, bem-vindo(a)!
       </Text>
+
+      {buscaAberta && (
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={darkMode ? "#AAA" : "#666"} />
+          <TextInput
+            value={busca}
+            onChangeText={setBusca}
+            placeholder="Número do ticket"
+            placeholderTextColor={darkMode ? "#888" : "#999"}
+            keyboardType="number-pad"
+            returnKeyType="search"
+            onSubmitEditing={buscarNoServidor}
+            autoFocus
+            style={styles.searchInput}
+            maxLength={20}
+          />
+          {buscando ? (
+            <ActivityIndicator size="small" color="#255088" />
+          ) : busca ? (
+            <Pressable onPress={() => setBusca("")} hitSlop={10} accessibilityLabel="Limpar">
+              <Ionicons name="close-circle" size={18} color={darkMode ? "#AAA" : "#999"} />
+            </Pressable>
+          ) : null}
+        </View>
+      )}
 
       {(isOffline || stale) && (
         <View style={styles.offlineBanner}>
@@ -248,9 +317,12 @@ export default function HomeScreen() {
         windowSize={7}
         removeClippedSubviews
         refreshControl={<RefreshControl refreshing={syncing} onRefresh={sincronizar} />}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Nenhum ticket encontrado</Text>
+            <Text style={styles.emptyText}>
+              {termo ? `Nenhum ticket com "${termo}" na lista.\nToque em buscar no teclado para consultar no servidor.` : "Nenhum ticket encontrado"}
+            </Text>
             <Image source={require("../assets/images/webicons/mailbox.png")} style={styles.imageMailBox} />
           </View>
         }
@@ -350,6 +422,19 @@ function makeStyles(dark: boolean) {
     },
     nome: { fontFamily: "ManropeExtraBold", color: fg },
     title: { fontSize: 18, fontFamily: "ManropeMedium", color: fg },
+    navRight: { flexDirection: "row", alignItems: "center", gap: 18 },
+    searchBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      width: "100%",
+      backgroundColor: dark ? "#1E1E1E" : "#FFFFFF",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      marginBottom: 14,
+      ...shadow(3),
+    },
+    searchInput: { flex: 1, paddingVertical: 10, fontFamily: "Manrope", fontSize: 15, color: fg },
     welcome: {
       fontSize: 18,
       fontFamily: "ManropeMedium",
